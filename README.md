@@ -1,4 +1,4 @@
-# Datera Storage Backend for Cinder
+# Datera Storage Backend for Cinder (WIP, do not use yet)
 
 This charm provides an Datera storage backend for use with the Cinder
 charm.
