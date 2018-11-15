@@ -1,0 +1,13 @@
+options:
+  san_ip:
+    type: string
+    default: 1.1.1.1
+    description: IP address of the Datera array
+  san_login:
+    type: string
+    default: admin
+    description: Datera user name
+  san_password:
+    type: string
+    default: password
+    description: Datera user password

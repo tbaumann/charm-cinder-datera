@@ -1,0 +1,21 @@
+name: cinder-datera
+summary: Datera integration for OpenStack Block Storage
+maintainers:
+ - Matt Smith <mss@datera.io>
+description: |
+ Cinder is the block storage service for the Openstack project.
+ .
+ This charm provides a Datera storage backend for Cinder
+tags:
+  - openstack
+  - storage
+subordinate: true
+provides:
+  storage-backend:
+    interface: cinder-backend
+    scope: container
+requires:
+  juju-info:
+    interface: juju-info
+    scope: container
+
