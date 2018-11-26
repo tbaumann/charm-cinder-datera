@@ -33,6 +33,9 @@ def install_from_github(url, tag, dest):
     try:
         handler = GitUrlFetchHandler()
         ddir = handler.install(url, branch=tag)
+        if os.path.exists(dest):
+            dlog("Removing existing directory at {}".format(dest))
+            shutil.rmtree(dest)
         shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
     except Exception as e:
         raise DateraException("Could not install from github: {}".format(e))
@@ -43,6 +46,9 @@ def install_from_archive_url(url, dest):
     try:
         handler = ArchiveUrlFetchHandler()
         ddir = handler.install(url)
+        if os.path.exists(dest):
+            dlog("Removing existing directory at {}".format(dest))
+            shutil.rmtree(dest)
         shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
     except Exception as e:
         raise DateraException(
@@ -53,6 +59,9 @@ def install_from_archive_local(archive, dest):
     dlog("Trying to install from archive")
     try:
         ddir = extract(archive)
+        if os.path.exists(dest):
+            dlog("Removing existing directory at {}".format(dest))
+            shutil.rmtree(dest)
         shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
     except Exception as e:
         raise DateraException(
