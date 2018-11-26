@@ -37,7 +37,8 @@ class DateraSubordinateContext(OSContextGenerator):
 
         service = service_name()
         ctxt.append(('volume_backend_name', service))
-        volume_driver = 'cinder.volume.drivers.datera.datera_iscsi.DateraDriver',
+        volume_driver = (
+            'cinder.volume.drivers.datera.datera_iscsi.DateraDriver'),
         ctxt.append(('volume_driver', volume_driver))
         ctxt.append(('use_multipath_for_image_xfer', 'true'))
         return {

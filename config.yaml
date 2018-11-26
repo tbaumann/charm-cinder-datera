@@ -11,3 +11,8 @@ options:
     type: string
     default: password
     description: Datera user password
+  install:
+    type: github
+    url: http://github.com/Datera/cinder-driver
+    tag: v2018.11.14.0
+    #file: ""
