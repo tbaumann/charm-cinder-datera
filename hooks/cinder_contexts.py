@@ -19,12 +19,12 @@ class DateraSubordinateContext(OSContextGenerator):
         'san_ip',
         'san_login',
         'san_password',
-        'datera_ldap_server',
-        'datera_tenant_id',
-        'datera_enable_image_cache',
-        'datera_image_cache_volume_type_id',
-        'datera_disable_extended_metadata',
-        'datera_disable_template_override',
+        # 'datera_ldap_server',
+        # 'datera_tenant_id',
+        # 'datera_enable_image_cache',
+        # 'datera_image_cache_volume_type_id',
+        # 'datera_disable_extended_metadata',
+        # 'datera_disable_template_override',
     ]
 
     def __call__(self):
