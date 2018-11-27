@@ -30,7 +30,12 @@ def dlog(msg):
     log('[cinder-datera] %s' % msg)
 
 
+def _remove():
+    dlog("Stating Datera driver removal")
+
+
 def install():
+    dlog("Stating Datera driver installation")
     dest = get_install_dest()
     if config('type') == 'github':
         install_from_github(config('install_url'), config('install_tag'), dest)

@@ -14,6 +14,7 @@ from charmhelpers.core.hookenv import (
 from cinder_contexts import DateraSubordinateContext
 from datera_utils import (
         install as _install,
+        remove as _remove,
         dlog
 )
 
@@ -36,6 +37,11 @@ def storage_backend(rel_id=None):
         backend_name=service_name(),
         subordinate_configuration=json.dumps(DateraSubordinateContext()())
     )
+
+
+@hooks.hook('storage-backend-relation-departed')
+def storage_backend_remove(rel_id=None):
+    _remove()
 
 
 if __name__ == '__main__':
