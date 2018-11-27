@@ -5,7 +5,7 @@ import subprocess
 from charmhelpers.core.hookenv import (
     config,
 )
-from charmhelpers.fetch.archive import (
+from charmhelpers.fetch.archiveurl import (
     ArchiveUrlFetchHandler,
 )
 
