@@ -31,7 +31,6 @@ def upgrade_charm():
 @hooks.hook('storage-backend-relation-joined',
             'storage-backend-relation-changed')
 def storage_backend(rel_id=None):
-    _install()
     relation_set(
         relation_id=rel_id,
         backend_name=service_name(),
@@ -41,7 +40,20 @@ def storage_backend(rel_id=None):
 
 @hooks.hook('storage-backend-relation-departed')
 def storage_backend_remove(rel_id=None):
+    dlog("storage_backend_remove called")
     _remove()
+
+
+@hooks.hook('start')
+def install():
+    dlog("Install called")
+    _install()
+
+
+@hooks.hook('stop')
+def noop():
+    dlog("noop (stop) called")
+    pass
 
 
 if __name__ == '__main__':
