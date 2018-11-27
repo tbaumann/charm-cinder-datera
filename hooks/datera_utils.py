@@ -127,7 +127,8 @@ def find_cinder_install():
 
 def get_install_dest():
     c = find_cinder_install()
-    path = os.path.join(c, "volume", "drivers", "datera")
-    if not os.path.exists(path):
-        path = os.path.join(c, "cinder", "volume", "drivers", "datera")
-    return path
+    cpath = os.path.join(c, "volume", "drivers")
+    dpath = os.path.join(cpath, "datera")
+    if not os.path.exists(cpath):
+        dpath = os.path.join(c, "cinder", "volume", "drivers", "datera")
+    return dpath
