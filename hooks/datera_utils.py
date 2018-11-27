@@ -37,15 +37,15 @@ def remove():
 def install():
     dlog("Stating Datera driver installation")
     dest = get_install_dest()
-    if config('type') == 'github':
+    if config('install_type') == 'github':
         install_from_github(config('install_url'), config('install_tag'), dest)
-    elif config('type') == 'archive-url':
+    elif config('install_type') == 'archive-url':
         install_from_archive_url(config('install_url'), dest)
-    elif config('type') == 'archive-local':
+    elif config('install_type') == 'archive-local':
         install_from_archive_local(config('install_file'), dest)
     else:
         raise DateraException("Unknown install type {}".format(
-            config('type')))
+            config('install_type')))
 
 
 def install_from_github(url, tag, dest):
