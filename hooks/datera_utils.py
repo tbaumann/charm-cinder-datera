@@ -9,7 +9,7 @@ from charmhelpers.fetch.archiveurl import (
     ArchiveUrlFetchHandler,
 )
 
-from charmhelpers.fetch.github import (
+from charmhelpers.fetch.giturl import (
     GitUrlFetchHandler,
 )
 
@@ -30,7 +30,7 @@ def dlog(msg):
     log('[cinder-datera] %s' % msg)
 
 
-def _remove():
+def remove():
     dlog("Stating Datera driver removal")
 
 
