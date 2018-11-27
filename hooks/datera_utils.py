@@ -21,6 +21,10 @@ from charmhelpers.core.hookenv import (
     log,
 )
 
+from charmhelpers.contrib.python.packages import (
+    pip_install,
+)
+
 
 class DateraException(Exception):
     pass
@@ -46,6 +50,7 @@ def install():
     else:
         raise DateraException("Unknown install type {}".format(
             config('install_type')))
+    pip_install("dfs_sdk", upgrade=True)
 
 
 def install_from_github(url, tag, dest):
@@ -56,7 +61,9 @@ def install_from_github(url, tag, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
+        src = os.path.join(ddir, "src", "datera")
+        dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
+        shutil.copytree(src, dest)
     except Exception as e:
         raise DateraException("Could not install from github: {}".format(e))
 
@@ -69,7 +76,9 @@ def install_from_archive_url(url, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
+        src = os.path.join(ddir, "src", "datera")
+        dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
+        shutil.copytree(src, dest)
     except Exception as e:
         raise DateraException(
             "Could not install from archive url: {}".format(e))
@@ -82,7 +91,9 @@ def install_from_archive_local(archive, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        shutil.copytree(os.path.join(ddir, "src", "datera"), dest)
+        src = os.path.join(ddir, "src", "datera")
+        dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
+        shutil.copytree(src, dest)
     except Exception as e:
         raise DateraException(
             "Could not install from archive url: {}".format(e))
