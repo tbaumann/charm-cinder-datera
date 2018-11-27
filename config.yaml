@@ -1,4 +1,22 @@
 options:
+  # Installation options
+  install_type:
+    type: string
+    default: github
+    description: Choices [github, archive-url, archive-local]
+  install_url:
+    type: string
+    default: http://github.com/Datera/cinder-driver
+    description: Github or archive url
+  install_archive_path:
+    type: string
+    default: ""
+    description: For use with install_type: archive-local
+  install_tag:
+    type: string
+    default: v2018.11.14.0
+    description: tag for use with github installs
+  # Configuration Options
   san_ip:
     type: string
     default: 1.1.1.1
@@ -11,8 +29,27 @@ options:
     type: string
     default: password
     description: Datera user password
-  install:
-    type: github
-    url: http://github.com/Datera/cinder-driver
-    tag: v2018.11.14.0
-    #file: ""
+  datera_ldap_server:
+    type: string
+    default: ""
+    description: Datera LDAP server
+  datera_tenant_id:
+    type: string
+    default: ""
+    description: Datera account tenant id
+  datera_enable_image_cache:
+    type: boolean
+    default: false
+    description: Datera image cache enable
+  datera_image_cache_volume_type_id:
+    type: string
+    default: ""
+    description: Volume Type ID to use with image cache
+  datera_disable_extended_metadata:
+    type: boolean
+    default: false
+    description: Disable Datera extended metadata logging
+  datera_disable_template_override:
+    type: boolean
+    default: false
+    description: Disable Datera template override feature

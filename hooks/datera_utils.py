@@ -2,10 +2,24 @@ import os
 import shutil
 import subprocess
 
-from charmhelpers.fetch.archive import ArchiveUrlFetchHandler
-from charmhelpers.fetch.github import GitUrlFetchHandler
-from charmhelpers.payload.archive import extract
-from charmhelpers.core.hookenv import log
+from charmhelpers.core.hookenv import (
+    config,
+)
+from charmhelpers.fetch.archive import (
+    ArchiveUrlFetchHandler,
+)
+
+from charmhelpers.fetch.github import (
+    GitUrlFetchHandler,
+)
+
+from charmhelpers.payload.archive import (
+    extract,
+)
+
+from charmhelpers.core.hookenv import (
+    log,
+)
 
 
 class DateraException(Exception):
@@ -16,16 +30,17 @@ def dlog(msg):
     log('[cinder-datera] %s' % msg)
 
 
-def install(config):
+def install():
     dest = get_install_dest()
-    if config['type'] == 'github':
-        install_from_github(config['url'], config['tag'], dest)
-    elif config['type'] == 'archive-url':
-        install_from_archive_url(config['url'], dest)
-    elif config['type'] == 'archive-local':
-        install_from_archive_local(config['file'], dest)
+    if config('type') == 'github':
+        install_from_github(config('install_url'), config('install_tag'), dest)
+    elif config('type') == 'archive-url':
+        install_from_archive_url(config('install_url'), dest)
+    elif config('type') == 'archive-local':
+        install_from_archive_local(config('install_file'), dest)
     else:
-        raise DateraException("Unknown install type {}".format(config['type']))
+        raise DateraException("Unknown install type {}".format(
+            config('type')))
 
 
 def install_from_github(url, tag, dest):

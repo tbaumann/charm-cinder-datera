@@ -6,7 +6,6 @@ import json
 from charmhelpers.core.hookenv import (
     Hooks,
     UnregisteredHookError,
-    config,
     service_name,
     relation_set,
     relation_ids,
@@ -31,7 +30,7 @@ def upgrade_charm():
 @hooks.hook('storage-backend-relation-joined',
             'storage-backend-relation-changed')
 def storage_backend(rel_id=None):
-    _install(config['install'])
+    _install()
     relation_set(
         relation_id=rel_id,
         backend_name=service_name(),
