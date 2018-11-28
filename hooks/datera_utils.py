@@ -1,3 +1,17 @@
+# Copyright 2018 Datera Inc
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import shutil
 import subprocess
@@ -25,6 +39,8 @@ from charmhelpers.contrib.python.packages import (
     pip_install,
 )
 
+CINDER_BACKUP_FOLDER = '/tmp/cinder'
+
 
 class DateraException(Exception):
     pass
@@ -36,11 +52,14 @@ def dlog(msg):
 
 def remove():
     dlog("Stating Datera driver removal")
+    dest = get_install_dest()
+    restore_folder(dest)
 
 
 def install():
     dlog("Stating Datera driver installation")
     dest = get_install_dest()
+    backup_folder(dest)
     if config('install_type') == 'github':
         install_from_github(config('install_url'), config('install_tag'), dest)
     elif config('install_type') == 'archive-url':
@@ -132,3 +151,14 @@ def get_install_dest():
     if not os.path.exists(cpath):
         dpath = os.path.join(c, "cinder", "volume", "drivers", "datera")
     return dpath
+
+
+def backup_folder(folder):
+    p = os.path.dirname(folder.rstrip('/'))
+    shutil.copytree(p, CINDER_BACKUP_FOLDER)
+
+
+def restore_folder(folder):
+    p = os.path.dirname(folder.rstrip('/'))
+    shutil.rmtree(p)
+    shutil.copytree(CINDER_BACKUP_FOLDER, p)
