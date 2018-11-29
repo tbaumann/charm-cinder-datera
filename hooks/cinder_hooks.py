@@ -23,13 +23,15 @@ from charmhelpers.core.hookenv import (
     relation_set,
     relation_ids,
     status_set,
+    application_version_set,
 )
 
 from cinder_contexts import DateraSubordinateContext
 from datera_utils import (
     install as _install,
     remove as _remove,
-    dlog
+    dlog,
+    get_version,
 )
 
 hooks = Hooks()
@@ -66,6 +68,7 @@ def install():
     dlog("Install called")
     status_set("maintenance", "Installing Datera Driver")
     _install()
+    application_version_set(get_version())
     status_set("maintenance", "Datera Driver installation finished")
 
 

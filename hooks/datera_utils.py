@@ -165,3 +165,13 @@ def restore_folder(folder):
     p = os.path.dirname(folder.rstrip('/'))
     shutil.rmtree(p)
     shutil.copytree(CINDER_BACKUP_FOLDER, p)
+
+
+def get_version():
+    file = os.path.join(get_install_dest(), 'datera_iscsi.py')
+    out = subprocess.check_output('grep "VERSION = " {}'.format(file))
+    parts = out.split(" = ")
+    if len(parts) == 2:
+        return parts[-1]
+    dlog("Uknown version: {}".format(out))
+    return "Unknown"
