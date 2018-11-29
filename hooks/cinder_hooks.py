@@ -22,13 +22,14 @@ from charmhelpers.core.hookenv import (
     service_name,
     relation_set,
     relation_ids,
+    status_set,
 )
 
 from cinder_contexts import DateraSubordinateContext
 from datera_utils import (
-        install as _install,
-        remove as _remove,
-        dlog
+    install as _install,
+    remove as _remove,
+    dlog
 )
 
 hooks = Hooks()
@@ -44,23 +45,28 @@ def upgrade_charm():
 @hooks.hook('storage-backend-relation-joined',
             'storage-backend-relation-changed')
 def storage_backend(rel_id=None):
+    status_set("maintenance", "Configuring Datera Driver")
     relation_set(
         relation_id=rel_id,
         backend_name=service_name(),
         subordinate_configuration=json.dumps(DateraSubordinateContext()())
     )
+    status_set("active", "Ready")
 
 
 @hooks.hook('storage-backend-relation-departed')
 def storage_backend_remove(rel_id=None):
     dlog("storage_backend_remove called")
+    status_set("maintenance", "Removing Datera Driver")
     _remove()
 
 
 @hooks.hook('start')
 def install():
     dlog("Install called")
+    status_set("maintenance", "Installing Datera Driver")
     _install()
+    status_set("maintenance", "Datera Driver installation finished")
 
 
 @hooks.hook('stop')
