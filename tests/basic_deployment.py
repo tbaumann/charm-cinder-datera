@@ -136,8 +136,6 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
                                                       tenant='admin')
         # Authenticate admin with cinder endpoint
         self.cinder = u.authenticate_cinder_admin(self.keystone_sentry,
-                                                  username='admin',
-                                                  password='openstack',
                                                   tenant='admin')
 
         # Create a demo tenant/role/user
