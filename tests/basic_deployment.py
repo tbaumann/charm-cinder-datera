@@ -16,12 +16,19 @@
 Basic cinder-datera functional test.
 """
 import amulet
+import os
+import sys
 
-from charmhelpers.contrib.openstack.amulet.deployment import (
+sys.path.append(
+    os.path.join(
+        os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))), 'hooks'))
+
+from charmhelpers.contrib.openstack.amulet.deployment import ( # noqa
     OpenStackAmuletDeployment
 )
 
-from charmhelpers.contrib.openstack.amulet.utils import (
+from charmhelpers.contrib.openstack.amulet.utils import ( # noqa
     OpenStackAmuletUtils,
     DEBUG,
 )
@@ -65,7 +72,7 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             {'name': 'cinder'}
         ]
         super(CinderDateraBasicDeployment, self)._add_services(
-            this_service, other_services)
+            this_service, other_services, no_origin=['cinder-datera'])
 
     def _add_relations(self):
         """Add all of the relations for the services."""
