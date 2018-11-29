@@ -155,7 +155,10 @@ def get_install_dest():
 
 def backup_folder(folder):
     p = os.path.dirname(folder.rstrip('/'))
-    shutil.copytree(p, CINDER_BACKUP_FOLDER)
+    try:
+        shutil.copytree(p, CINDER_BACKUP_FOLDER)
+    except OSError as e:
+        dlog(e)
 
 
 def restore_folder(folder):
