@@ -15,20 +15,15 @@
 """
 Basic cinder-datera functional test.
 """
+import json
+
 import amulet
-import os
-import sys
 
-sys.path.append(
-    os.path.join(
-        os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__))), 'hooks'))
-
-from charmhelpers.contrib.openstack.amulet.deployment import ( # noqa
+from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
 )
 
-from charmhelpers.contrib.openstack.amulet.utils import ( # noqa
+from charmhelpers.contrib.openstack.amulet.utils import (
     OpenStackAmuletUtils,
     DEBUG,
 )
@@ -261,23 +256,26 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         unit = self.cinder_datera_sentry
         relation = ['storage-backend', 'cinder:storage-backend']
 
-        sub = ('{"cinder": '
-               '{"/etc/cinder/cinder.conf": '
-               '{"sections": '
-               '{"cinder-datera": ['
-               '["san_ip", "172.19.1.222"], '
-               '["san_login", "admin"], '
-               '["san_password", "password"], '
-               '["volume_backend_name", "cinder-datera"], '
-               '["volume_driver", '
-               '"cinder.volume.drivers.datera.datera_iscsi.DateraDriver"]'
-               ']}}}}')
+        sub = {"cinder":
+               {"/etc/cinder/cinder.conf":
+                {"sections":
+                 {"cinder-datera": [
+                     ["san_ip", "172.19.1.222"],
+                     ["san_login", "admin"],
+                     ["san_password", "password"],
+                     ["volume_backend_name", "cinder-datera"],
+                     ["volume_driver",
+                      "cinder.volume.drivers.datera."
+                      "datera_iscsi.DateraDriver"],
+                     ["use_multipath_for_image_xfer", "true"],
+                 ]}}}}
 
         expected = {
-            'subordinate_configuration': sub,
+            'subordinate_configuration': json.dumps(sub),
             'private-address': u.valid_ip,
             'backend_name': 'cinder-datera',
-            'stateless': 'True'
+            'egress-subnets': lambda x: True,
+            'ingress-address': u.valid_ip,
         }
 
         ret = u.validate_relation_data(unit, relation, expected)
