@@ -148,16 +148,17 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
 
     def test_102_services(self):
         """Verify the expected services are running on the service units."""
+        if self._get_openstack_release() >= self.xenial_ocata:
+            cinder_services = ['apache2',
+                               'cinder-scheduler',
+                               'cinder-volume']
+        else:
+            cinder_services = ['cinder-api',
+                               'cinder-scheduler',
+                               'cinder-volume']
         services = {
-            self.rabbitmq_sentry: ['rabbitmq-server'],
-            self.keystone_sentry: ['keystone'],
-            self.cinder_sentry: ['cinder-api',
-                                 'cinder-scheduler',
-                                 'cinder-volume'],
+            self.cinder_sentry: cinder_services,
         }
-
-        if self._get_openstack_release() >= self.trusty_liberty:
-            services[self.keystone_sentry] = ['apache2']
 
         ret = u.validate_services_by_name(services)
         if ret:
@@ -186,48 +187,70 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
     def test_112_service_catalog(self):
         """Verify that the service catalog endpoint data"""
         u.log.debug('Checking keystone service catalog...')
-        endpoint_vol = {
-            'adminURL': u.valid_url,
-            'region': 'RegionOne',
-            'publicURL': u.valid_url,
-            'internalURL': u.valid_url
-        }
-        endpoint_id = {
-            'adminURL': u.valid_url,
-            'region': 'RegionOne',
-            'publicURL': u.valid_url,
-            'internalURL': u.valid_url
-        }
+        u.log.debug('Checking keystone service catalog...')
+        endpoint_vol = {'adminURL': u.valid_url,
+                        'region': 'RegionOne',
+                        'publicURL': u.valid_url,
+                        'internalURL': u.valid_url}
+        endpoint_id = {'adminURL': u.valid_url,
+                       'region': 'RegionOne',
+                       'publicURL': u.valid_url,
+                       'internalURL': u.valid_url}
         if self._get_openstack_release() >= self.trusty_icehouse:
             endpoint_vol['id'] = u.not_null
             endpoint_id['id'] = u.not_null
 
-        expected = {
-            'identity': [endpoint_id],
-            'volume': [endpoint_id]
-        }
+        if self._get_openstack_release() >= self.xenial_pike:
+            # Pike and later
+            expected = {'identity': [endpoint_id],
+                        'volumev2': [endpoint_id]}
+        else:
+            # Ocata and prior
+            expected = {'identity': [endpoint_id],
+                        'volume': [endpoint_id]}
         actual = self.keystone.service_catalog.get_endpoints()
 
-        ret = u.validate_svc_catalog_endpoint_data(expected, actual)
+        ret = u.validate_svc_catalog_endpoint_data(
+            expected,
+            actual,
+            openstack_release=self._get_openstack_release())
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
 
     def test_114_cinder_endpoint(self):
         """Verify the cinder endpoint data."""
-        u.log.debug('Checking cinder api endpoint data...')
+        u.log.debug('Checking cinder endpoint...')
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8776'
-        expected = {
-            'id': u.not_null,
-            'region': 'RegionOne',
-            'adminurl': u.valid_url,
-            'internalurl': u.valid_url,
-            'publicurl': u.valid_url,
-            'service_id': u.not_null
-        }
-
-        ret = u.validate_endpoint_data(endpoints, admin_port, internal_port,
-                                       public_port, expected)
+        if self._get_openstack_release() >= self.xenial_queens:
+            expected = {
+                'id': u.not_null,
+                'region': 'RegionOne',
+                'region_id': 'RegionOne',
+                'url': u.valid_url,
+                'interface': u.not_null,
+                'service_id': u.not_null}
+            ret = u.validate_v3_endpoint_data(
+                endpoints,
+                admin_port,
+                internal_port,
+                public_port,
+                expected,
+                6)
+        else:
+            expected = {
+                'id': u.not_null,
+                'region': 'RegionOne',
+                'adminurl': u.valid_url,
+                'internalurl': u.valid_url,
+                'publicurl': u.valid_url,
+                'service_id': u.not_null}
+            ret = u.validate_v2_endpoint_data(
+                endpoints,
+                admin_port,
+                internal_port,
+                public_port,
+                expected)
         if ret:
             amulet.raise_status(amulet.FAIL,
                                 msg='cinder endpoint: {}'.format(ret))

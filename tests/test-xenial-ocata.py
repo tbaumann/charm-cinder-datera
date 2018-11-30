@@ -20,7 +20,7 @@ from basic_deployment import CinderDateraBasicDeployment
 
 if __name__ == '__main__':
     deployment = CinderDateraBasicDeployment(
-            series='xenial',
-            openstack='cloud:xenial-ocata',
-            source='cloud:xenial-updates/ocata')
+        series='xenial',
+        openstack='cloud:xenial-ocata',
+        source='cloud:xenial-updates/ocata')
     deployment.run_tests()
