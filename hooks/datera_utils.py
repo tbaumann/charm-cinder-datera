@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import shlex
 import shutil
 import subprocess
 
@@ -129,12 +130,11 @@ def find_cinder_install():
         return os.path.dirname(cinder.__file__)
     except ImportError:
         try:
-            out = subprocess.check_output(
-                "python -c 'import cinder; print(cinder.__file__)'")
+            out = exec_cmd("python -c 'import cinder; print(cinder.__file__)'")
             return os.path.dirname(out)
         except subprocess.CalledProcessError:
             try:
-                out = subprocess.check_output(
+                out = exec_cmd(
                     "python3 -c 'import cinder; print(cinder.__file__)'")
                 return os.path.dirname(out)
             except subprocess.CalledProcessError:
@@ -169,9 +169,15 @@ def restore_folder(folder):
 
 def get_version():
     file = os.path.join(get_install_dest(), 'datera_iscsi.py')
-    out = subprocess.check_output('grep "VERSION = " {}'.format(file))
+    out = exec_cmd('grep "VERSION = " {}'.format(file))
     parts = out.split(" = ")
     if len(parts) == 2:
         return parts[-1]
     dlog("Uknown version: {}".format(out))
     return "Unknown"
+
+
+def exec_cmd(cmd):
+    dlog("Executing command: [{}]".format(cmd))
+    out = subprocess.check_output(shlex.split(cmd))
+    dlog("Result: {}".format(out))
