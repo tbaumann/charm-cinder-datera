@@ -264,19 +264,19 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         sub = ('{"cinder": '
                '{"/etc/cinder/cinder.conf": '
                '{"sections": '
-               '{"cinder-datera-%s": ['
+               '{"cinder-datera": ['
                '["san_ip", "172.19.1.222"], '
                '["san_login", "admin"], '
                '["san_password", "password"], '
                '["volume_backend_name", "cinder-datera"], '
                '["volume_driver", '
                '"cinder.volume.drivers.datera.datera_iscsi.DateraDriver"]'
-               ']}}}}') % unit.info['unit']
+               ']}}}}')
 
         expected = {
             'subordinate_configuration': sub,
             'private-address': u.valid_ip,
-            'backend_name': ('cinder-datera-%s' % unit.info['unit']),
+            'backend_name': 'cinder-datera',
             'stateless': 'True'
         }
 
