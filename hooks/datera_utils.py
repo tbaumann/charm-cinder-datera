@@ -181,3 +181,4 @@ def exec_cmd(cmd):
     dlog("Executing command: [{}]".format(cmd))
     out = subprocess.check_output(shlex.split(cmd))
     dlog("Result: {}".format(out))
+    return out
