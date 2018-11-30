@@ -130,38 +130,23 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             self._get_openstack_release_string()))
 
         # Authenticate admin with keystone
+        self.keystone_session, self.keystone = u.get_default_keystone_session(
+            self.keystone_sentry,
+            openstack_release=self._get_openstack_release())
+
+        # Authenticate admin with cinder endpoint
+        if self._get_openstack_release() >= self.xenial_pike:
+            api_version = 2
+        else:
+            api_version = 1
+
+        # Authenticate admin with keystone
         self.keystone = u.authenticate_keystone_admin(self.keystone_sentry,
                                                       user='admin',
                                                       password='openstack',
                                                       tenant='admin')
         # Authenticate admin with cinder endpoint
-        self.cinder = u.authenticate_cinder_admin(self.keystone_sentry)
-
-        # Create a demo tenant/role/user
-        self.demo_tenant = 'demoTenant'
-        self.demo_role = 'demoRole'
-        self.demo_user = 'demoUser'
-        if not u.tenant_exists(self.keystone, self.demo_tenant):
-            tenant = self.keystone.tenants.create(tenant_name=self.demo_tenant,
-                                                  description='demo tenant',
-                                                  enabled=True)
-            self.keystone.roles.create(name=self.demo_role)
-            self.keystone.users.create(name=self.demo_user,
-                                       password='password',
-                                       tenant_id=tenant.id,
-                                       email='demo@demo.com')
-
-        # Authenticate demo user with keystone
-        self.keystone_demo = u.authenticate_keystone_user(self.keystone,
-                                                          self.demo_user,
-                                                          'password',
-                                                          self.demo_tenant)
-
-        # Authenticate demo user with nova-api
-        self.nova_demo = u.authenticate_nova_user(self.keystone,
-                                                  self.demo_user,
-                                                  'password',
-                                                  self.demo_tenant)
+        self.cinder = u.authenticate_cinder_admin(self.keystone, api_version)
 
     def test_102_services(self):
         """Verify the expected services are running on the service units."""
