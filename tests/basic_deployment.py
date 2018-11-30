@@ -66,7 +66,7 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         # Note: cinder-datera becomes a cinder subordinate unit.
         this_service = {'name': 'cinder-datera'}
         other_services = [
-            {'name': 'percona-cluster', 'constraints': {'mem': '3072M'}},
+            {'name': 'percona-cluster'},
             {'name': 'keystone'},
             {'name': 'rabbitmq-server'},
             {'name': 'cinder'}
@@ -93,10 +93,8 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             'admin-token': 'ubuntutesting'
         }
         pxc_config = {
-            'dataset-size': '25%',
+            'innodb-buffer-pool-size': '256M',
             'max-connections': 1000,
-            'root-password': 'ChangeMe123',
-            'sst-password': 'ChangeMe123',
         }
         cinder_config = {
             'block-device': 'None',
