@@ -369,13 +369,12 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
                 'verbose': 'False',
                 'volume_group': 'cinder-volumes',
                 'auth_strategy': 'keystone',
-                'volumes_dir': '/var/lib/cinder/volumes',
                 'enabled_backends': dat_backend
             },
             dat_backend: {
-                'san_ip': '172.27.1.50',
+                'san_ip': '172.19.1.222',
                 'san_login': 'admin',
-                'san_password': 'theSecretWord',
+                'san_password': 'password',
                 'volume_backend_name': 'cinder-datera',
                 'volume_driver': (
                     'cinder.volume.drivers.datera.datera_iscsi.DateraDriver')
