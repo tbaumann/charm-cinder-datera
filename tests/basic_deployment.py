@@ -182,6 +182,8 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
              'id': u.not_null,
              'email': 'juju@localhost'}
         ]
+        if self._get_openstack_release() > self.xenial_ocata:
+            expected[0]['name'] = 'cinderv2_cinderv3'
         actual = self.keystone.users.list()
         ret = u.validate_user_data(expected, actual)
         if ret:
@@ -282,7 +284,7 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             'subordinate_configuration': json.dumps(sub),
             'private-address': u.valid_ip,
             'backend_name': 'cinder-datera',
-            'egress-subnets': lambda x: True,
+            'egress-subnets': u.not_null,
             'ingress-address': u.valid_ip,
         }
 
