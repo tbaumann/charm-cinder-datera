@@ -28,6 +28,8 @@ from charmhelpers.contrib.openstack.amulet.utils import (
     DEBUG,
 )
 
+ARCHIVE_URL = ('https://github.com/Datera/cinder-driver/archive/'
+               'v2018.11.14.0.tar.gz')
 # Use DEBUG to turn on debug logging
 u = OpenStackAmuletUtils(DEBUG)
 
@@ -35,13 +37,15 @@ u = OpenStackAmuletUtils(DEBUG)
 class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
     """Amulet tests on a basic heat deployment."""
 
-    def __init__(self, series=None, openstack=None, source=None, stable=False):
+    def __init__(self, series=None, openstack=None, source=None, stable=False,
+                 install_type="github"):
         """Deploy the entire test environment."""
         super(CinderDateraBasicDeployment, self).__init__(series, openstack,
                                                           source, stable)
+
         self._add_services()
         self._add_relations()
-        self._configure_services()
+        self._configure_services(install_type)
         self._deploy()
 
         u.log.info('Waiting on extended status checks...')
@@ -81,7 +85,7 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         }
         super(CinderDateraBasicDeployment, self)._add_relations(relations)
 
-    def _configure_services(self):
+    def _configure_services(self, install_type):
         """Configure all of the services."""
         keystone_config = {
             'admin-password': 'openstack',
@@ -95,11 +99,15 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             'block-device': 'None',
             'glance-api-version': '2'
         }
+
         cinder_datera_config = {
             'san_ip': '172.19.1.222',
             'san_login': 'admin',
-            'san_password': 'password'
+            'san_password': 'password',
+            'install_type': install_type
         }
+        if install_type == 'archive-url':
+            cinder_datera_config['install_url'] = ARCHIVE_URL
         configs = {
             'keystone': keystone_config,
             'percona-cluster': pxc_config,

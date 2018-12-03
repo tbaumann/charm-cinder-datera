@@ -14,20 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Amulet tests on a basic cinder-datera deployment on xenial-ocata."""
+"""Amulet tests on a basic cinder-datera deployment on xenial-pike."""
 
 from basic_deployment import CinderDateraBasicDeployment
 
 if __name__ == '__main__':
     github_deployment = CinderDateraBasicDeployment(
         series='xenial',
-        openstack='cloud:xenial-ocata',
-        source='cloud:xenial-updates/ocata')
+        openstack='cloud:xenial-pike',
+        source='cloud:xenial-updates/pike')
     github_deployment.run_tests()
 
     archive_deployment = CinderDateraBasicDeployment(
         series='xenial',
-        openstack='cloud:xenial-ocata',
-        source='cloud:xenial-updates/ocata',
+        openstack='cloud:xenial-pike',
+        source='cloud:xenial-updates/pike',
         install_type='archive-url')
     archive_deployment.run_tests()
