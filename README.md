@@ -18,6 +18,7 @@ Add this configuration in the config.yaml file before deploying the charm.
 
     juju deploy cinder
     juju deploy cinder-datera
+    juju config cinder-datera san_ip=1.1.1.1 san_login=mylogin san_password=mypass
     juju add-relation cinder-datera cinder
 
 
