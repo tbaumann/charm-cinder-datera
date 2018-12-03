@@ -354,6 +354,50 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             msg = u.relation_error('identity-service cinder', ret)
             amulet.raise_status(amulet.FAIL, msg=msg)
 
+    def test_207_cinder_keystone_id_relation(self):
+        """Verify the cinder:keystone identity-service relation data"""
+        u.log.debug('Checking cinder:keystone id relation data...')
+        unit = self.cinder_sentry
+        relation = ['identity-service',
+                    'keystone:identity-service']
+        expected = {
+            'private-address': u.valid_ip
+        }
+        ret = u.validate_relation_data(unit, relation, expected)
+        if ret:
+            msg = u.relation_error('cinder identity-service', ret)
+            amulet.raise_status(amulet.FAIL, msg=msg)
+
+    def test_208_rabbitmq_cinder_amqp_relation(self):
+        """Verify the rabbitmq-server:cinder amqp relation data"""
+        u.log.debug('Checking rmq:cinder amqp relation data...')
+        unit = self.rabbitmq_sentry
+        relation = ['amqp', 'cinder:amqp']
+        expected = {
+            'private-address': u.valid_ip,
+            'password': u.not_null,
+            'hostname': u.valid_ip
+        }
+        ret = u.validate_relation_data(unit, relation, expected)
+        if ret:
+            msg = u.relation_error('amqp cinder', ret)
+            amulet.raise_status(amulet.FAIL, msg=msg)
+
+    def test_209_cinder_rabbitmq_amqp_relation(self):
+        """Verify the cinder:rabbitmq-server amqp relation data"""
+        u.log.debug('Checking cinder:rmq amqp relation data...')
+        unit = self.cinder_sentry
+        relation = ['amqp', 'rabbitmq-server:amqp']
+        expected = {
+            'private-address': u.valid_ip,
+            'vhost': 'openstack',
+            'username': u.not_null
+        }
+        ret = u.validate_relation_data(unit, relation, expected)
+        if ret:
+            msg = u.relation_error('cinder amqp', ret)
+            amulet.raise_status(amulet.FAIL, msg=msg)
+
     def test_300_cinder_config(self):
         """Verify the data in the cinder.conf file."""
         u.log.debug('Checking cinder config file data...')
@@ -406,3 +450,10 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         check = list(self.cinder.volumes.list())
         u.log.debug('Cinder api check (volumes.list): {}'.format(check))
         assert(check == [])
+
+    def test_402_create_delete_volume(self):
+        """Create a cinder volume and delete it."""
+        u.log.debug('Creating, checking and deleting cinder volume...')
+        vol_new = u.create_cinder_volume(self.cinder)
+        vol_id = vol_new.id
+        u.delete_resource(self.cinder.volumes, vol_id, msg="cinder volume")
