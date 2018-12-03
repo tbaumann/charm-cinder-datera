@@ -362,12 +362,11 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
         unit_mq = self.rabbitmq_sentry
         rel_mq_ci = unit_mq.relation('amqp', 'cinder:amqp')
 
-        dat_backend = ('cinder-datera-%s' % unit.info['unit'])
+        dat_backend = 'cinder-datera'
         expected = {
             'DEFAULT': {
                 'debug': 'False',
                 'verbose': 'False',
-                'volume_group': 'cinder-volumes',
                 'auth_strategy': 'keystone',
                 'enabled_backends': dat_backend
             },
@@ -375,7 +374,7 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
                 'san_ip': '172.19.1.222',
                 'san_login': 'admin',
                 'san_password': 'password',
-                'volume_backend_name': 'cinder-datera',
+                'volume_backend_name': dat_backend,
                 'volume_driver': (
                     'cinder.volume.drivers.datera.datera_iscsi.DateraDriver')
             }
