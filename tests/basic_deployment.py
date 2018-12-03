@@ -355,10 +355,17 @@ class CinderDateraBasicDeployment(OpenStackAmuletDeployment):
             'auth_protocol': 'http',
             'private-address': u.valid_ip,
             'auth_host': u.valid_ip,
-            'service_username': 'cinder_cinderv2',
             'service_tenant_id': u.not_null,
             'service_host': u.valid_ip
         }
+
+        if self._get_openstack_release() < self.xenial_pike:
+            # Ocata and earlier
+            expected['service_username'] = 'cinder_cinderv2'
+        else:
+            # Pike and later
+            expected['service_username'] = 'cinderv2_cinderv3'
+
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
             msg = u.relation_error('identity-service cinder', ret)
