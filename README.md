@@ -25,8 +25,8 @@ Add this configuration in the config.yaml file before deploying the charm.
 
     juju deploy cinder
     git clone http://github.com/Datera/charm-cinder-datera
-    charm build -s xenial ./charm-cinder-datera/ -o .
-    juju deploy ./xenial/cinder-datera
+    charm build ./charm-cinder-datera/ -o .
+    juju deploy ./builds/cinder-datera
     juju config cinder-datera san_ip=1.1.1.1 san_login=mylogin san_password=mypass
     juju add-relation cinder-datera cinder
 
@@ -44,10 +44,10 @@ Add this configuration in the config.yaml file before deploying the charm.
   - default: ""
 - install\_tag:
   - description: The git tag to use when downloading from github
-  - default: v2018.11.14.0
+  - default: master
 
 If none of the above options are provided, the juju installer will try to
-download the source from Datera's github and use the v2018.11.14.0 tag for
+download the source from Datera's github and use the master branch for
 deployment.
 
 # Contact Information

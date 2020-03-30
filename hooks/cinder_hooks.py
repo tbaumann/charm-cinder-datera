@@ -83,3 +83,9 @@ if __name__ == '__main__':
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
         dlog('Unknown hook {} - skipping.'.format(e))
+
+# Leader hooks must be wired up.
+@hooks.hook('leader-elected', 'leader-settings-changed')
+def leader_settings_changed():
+    dlog("noop (leader-elected) called")
+

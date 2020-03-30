@@ -79,7 +79,7 @@ def install_from_github(url, tag, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        src = os.path.join(ddir, "src", "datera")
+        src = os.path.join(ddir, "src", "cinder", "volume", "drivers", "datera")
         dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
         shutil.copytree(src, dest)
     except Exception as e:
@@ -94,7 +94,7 @@ def install_from_archive_url(url, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        src = os.path.join(ddir, "src", "datera")
+        src = os.path.join(ddir, "src", "cinder", "volume", "drivers", "datera")
         dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
         shutil.copytree(src, dest)
     except Exception as e:
@@ -109,7 +109,7 @@ def install_from_archive_local(archive, dest):
         if os.path.exists(dest):
             dlog("Removing existing directory at {}".format(dest))
             shutil.rmtree(dest)
-        src = os.path.join(ddir, "src", "datera")
+        src = os.path.join(ddir, "src", "cinder", "volume", "drivers", "datera")
         dlog("Copying tree. src [{}] dst [{}]".format(src, dest))
         shutil.copytree(src, dest)
     except Exception as e:

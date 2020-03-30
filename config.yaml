@@ -14,7 +14,7 @@ options:
     description: "For use with install_type: archive-local"
   install_tag:
     type: string
-    default: v2018.11.14.0
+    default: master
     description: "tag for use with github installs"
   # Configuration Options
   san_ip:
