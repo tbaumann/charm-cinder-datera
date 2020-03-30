@@ -25,10 +25,6 @@ from subprocess import check_call, CalledProcessError
 
 import six
 
-from charmhelpers.contrib.openstack.audits.openstack_security_guide import (
-    _config_ini as config_ini
-)
-
 from charmhelpers.fetch import (
     apt_install,
     filter_installed_packages,
