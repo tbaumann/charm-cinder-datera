@@ -18,17 +18,23 @@ import json
 import math
 import os
 import re
+import socket
 import time
 from base64 import b64decode
 from subprocess import check_call, CalledProcessError
 
 import six
 
+from charmhelpers.contrib.openstack.audits.openstack_security_guide import (
+    _config_ini as config_ini
+)
+
 from charmhelpers.fetch import (
     apt_install,
     filter_installed_packages,
 )
 from charmhelpers.core.hookenv import (
+    NoNetworkBinding,
     config,
     is_relation_made,
     local_unit,
@@ -97,8 +103,8 @@ from charmhelpers.contrib.network.ip import (
 )
 from charmhelpers.contrib.openstack.utils import (
     config_flags_parser,
+    get_os_codename_install_source,
     enable_memcache,
-    snap_install_requested,
     CompareOpenStackReleases,
     os_release,
 )
@@ -116,6 +122,7 @@ except ImportError:
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 ADDRESS_TYPES = ['admin', 'internal', 'public']
 HAPROXY_RUN_DIR = '/var/run/haproxy/'
+DEFAULT_OSLO_MESSAGING_DRIVER = "messagingv2"
 
 
 def ensure_packages(packages):
@@ -241,6 +248,8 @@ class SharedDBContext(OSContextGenerator):
         else:
             rids = relation_ids(self.interfaces[0])
 
+        rel = (get_os_codename_install_source(config('openstack-origin')) or
+               'icehouse')
         for rid in rids:
             self.related = True
             for unit in related_units(rid):
@@ -252,13 +261,10 @@ class SharedDBContext(OSContextGenerator):
                     'database': self.database,
                     'database_user': self.user,
                     'database_password': rdata.get(password_setting),
-                    'database_type': 'mysql'
+                    'database_type': 'mysql+pymysql'
                 }
-                # Note(coreycb): We can drop mysql+pymysql if we want when the
-                # following review lands, though it seems mysql+pymysql would
-                # be preferred. https://review.openstack.org/#/c/462190/
-                if snap_install_requested():
-                    ctxt['database_type'] = 'mysql+pymysql'
+                if CompareOpenStackReleases(rel) < 'queens':
+                    ctxt['database_type'] = 'mysql'
                 if self.context_complete(ctxt):
                     db_ssl(rdata, ctxt, self.ssl_dir)
                     return ctxt
@@ -351,9 +357,69 @@ class IdentityServiceContext(OSContextGenerator):
             return cachedir
         return None
 
+    def _get_pkg_name(self, python_name='keystonemiddleware'):
+        """Get corresponding distro installed package for python
+        package name.
+
+        :param python_name: nameof the python package
+        :type: string
+        """
+        pkg_names = map(lambda x: x + python_name, ('python3-', 'python-'))
+
+        for pkg in pkg_names:
+            if not filter_installed_packages((pkg,)):
+                return pkg
+
+        return None
+
+    def _get_keystone_authtoken_ctxt(self, ctxt, keystonemiddleware_os_rel):
+        """Build Jinja2 context for full rendering of [keystone_authtoken]
+        section with variable names included. Re-constructed from former
+        template 'section-keystone-auth-mitaka'.
+
+        :param ctxt: Jinja2 context returned from self.__call__()
+        :type: dict
+        :param keystonemiddleware_os_rel: OpenStack release name of
+            keystonemiddleware package installed
+        """
+        c = collections.OrderedDict((('auth_type', 'password'),))
+
+        # 'www_authenticate_uri' replaced 'auth_uri' since Stein,
+        # see keystonemiddleware upstream sources for more info
+        if CompareOpenStackReleases(keystonemiddleware_os_rel) >= 'stein':
+            c.update((
+                ('www_authenticate_uri', "{}://{}:{}/v3".format(
+                    ctxt.get('service_protocol', ''),
+                    ctxt.get('service_host', ''),
+                    ctxt.get('service_port', ''))),))
+        else:
+            c.update((
+                ('auth_uri', "{}://{}:{}/v3".format(
+                    ctxt.get('service_protocol', ''),
+                    ctxt.get('service_host', ''),
+                    ctxt.get('service_port', ''))),))
+
+        c.update((
+            ('auth_url', "{}://{}:{}/v3".format(
+                ctxt.get('auth_protocol', ''),
+                ctxt.get('auth_host', ''),
+                ctxt.get('auth_port', ''))),
+            ('project_domain_name', ctxt.get('admin_domain_name', '')),
+            ('user_domain_name', ctxt.get('admin_domain_name', '')),
+            ('project_name', ctxt.get('admin_tenant_name', '')),
+            ('username', ctxt.get('admin_user', '')),
+            ('password', ctxt.get('admin_password', '')),
+            ('signing_dir', ctxt.get('signing_dir', '')),))
+
+        return c
+
     def __call__(self):
         log('Generating template context for ' + self.rel_name, level=DEBUG)
         ctxt = {}
+
+        keystonemiddleware_os_release = None
+        if self._get_pkg_name():
+            keystonemiddleware_os_release = os_release(self._get_pkg_name())
 
         cachedir = self._setup_pki_cache()
         if cachedir:
@@ -382,8 +448,18 @@ class IdentityServiceContext(OSContextGenerator):
                              'api_version': api_version})
 
                 if float(api_version) > 2:
-                    ctxt.update({'admin_domain_name':
-                                 rdata.get('service_domain')})
+                    ctxt.update({
+                        'admin_domain_name': rdata.get('service_domain'),
+                        'service_project_id': rdata.get('service_tenant_id'),
+                        'service_domain_id': rdata.get('service_domain_id')})
+
+                # we keep all veriables in ctxt for compatibility and
+                # add nested dictionary for keystone_authtoken generic
+                # templating
+                if keystonemiddleware_os_release:
+                    ctxt['keystone_authtoken'] = \
+                        self._get_keystone_authtoken_ctxt(
+                            ctxt, keystonemiddleware_os_release)
 
                 if self.context_complete(ctxt):
                     # NOTE(jamespage) this is required for >= icehouse
@@ -450,6 +526,86 @@ class IdentityCredentialsContext(IdentityServiceContext):
                     return ctxt
 
         return {}
+
+
+class NovaVendorMetadataContext(OSContextGenerator):
+    """Context used for configuring nova vendor metadata on nova.conf file."""
+
+    def __init__(self, os_release_pkg, interfaces=None):
+        """Initialize the NovaVendorMetadataContext object.
+
+        :param os_release_pkg: the package name to extract the OpenStack
+            release codename from.
+        :type os_release_pkg: str
+        :param interfaces: list of string values to be used as the Context's
+            relation interfaces.
+        :type interfaces: List[str]
+        """
+        self.os_release_pkg = os_release_pkg
+        if interfaces is not None:
+            self.interfaces = interfaces
+
+    def __call__(self):
+        cmp_os_release = CompareOpenStackReleases(
+            os_release(self.os_release_pkg))
+        ctxt = {'vendor_data': False}
+
+        vdata_providers = []
+        vdata = config('vendor-data')
+        vdata_url = config('vendor-data-url')
+
+        if vdata:
+            try:
+                # validate the JSON. If invalid, we do not set anything here
+                json.loads(vdata)
+            except (TypeError, ValueError) as e:
+                log('Error decoding vendor-data. {}'.format(e), level=ERROR)
+            else:
+                ctxt['vendor_data'] = True
+                # Mitaka does not support DynamicJSON
+                # so vendordata_providers is not needed
+                if cmp_os_release > 'mitaka':
+                    vdata_providers.append('StaticJSON')
+
+        if vdata_url:
+            if cmp_os_release > 'mitaka':
+                ctxt['vendor_data_url'] = vdata_url
+                vdata_providers.append('DynamicJSON')
+            else:
+                log('Dynamic vendor data unsupported'
+                    ' for {}.'.format(cmp_os_release), level=ERROR)
+        if vdata_providers:
+            ctxt['vendordata_providers'] = ','.join(vdata_providers)
+
+        return ctxt
+
+
+class NovaVendorMetadataJSONContext(OSContextGenerator):
+    """Context used for writing nova vendor metadata json file."""
+
+    def __init__(self, os_release_pkg):
+        """Initialize the NovaVendorMetadataJSONContext object.
+
+        :param os_release_pkg: the package name to extract the OpenStack
+            release codename from.
+        :type os_release_pkg: str
+        """
+        self.os_release_pkg = os_release_pkg
+
+    def __call__(self):
+        ctxt = {'vendor_data_json': '{}'}
+
+        vdata = config('vendor-data')
+        if vdata:
+            try:
+                # validate the JSON. If invalid, we return empty.
+                json.loads(vdata)
+            except (TypeError, ValueError) as e:
+                log('Error decoding vendor-data. {}'.format(e), level=ERROR)
+            else:
+                ctxt['vendor_data_json'] = vdata
+
+        return ctxt
 
 
 class AMQPContext(OSContextGenerator):
@@ -569,6 +725,23 @@ class AMQPContext(OSContextGenerator):
             ctxt['oslo_messaging_flags'] = config_flags_parser(
                 oslo_messaging_flags)
 
+        oslo_messaging_driver = conf.get(
+            'oslo-messaging-driver', DEFAULT_OSLO_MESSAGING_DRIVER)
+        if oslo_messaging_driver:
+            ctxt['oslo_messaging_driver'] = oslo_messaging_driver
+
+        notification_format = conf.get('notification-format', None)
+        if notification_format:
+            ctxt['notification_format'] = notification_format
+
+        notification_topics = conf.get('notification-topics', None)
+        if notification_topics:
+            ctxt['notification_topics'] = notification_topics
+
+        send_notifications_to_logs = conf.get('send-notifications-to-logs', None)
+        if send_notifications_to_logs:
+            ctxt['send_notifications_to_logs'] = send_notifications_to_logs
+
         if not self.complete:
             return {}
 
@@ -619,6 +792,25 @@ class CephContext(OSContextGenerator):
 
         ensure_packages(['ceph-common'])
         return ctxt
+
+    def context_complete(self, ctxt):
+        """Overridden here to ensure the context is actually complete.
+
+        We set `key` and `auth` to None here, by default, to ensure
+        that the context will always evaluate to incomplete until the
+        Ceph relation has actually sent these details; otherwise,
+        there is a potential race condition between the relation
+        appearing and the first unit actually setting this data on the
+        relation.
+
+        :param ctxt: The current context members
+        :type ctxt: Dict[str, ANY]
+        :returns: True if the context is complete
+        :rtype: bool
+        """
+        if 'auth' not in ctxt or 'key' not in ctxt:
+            return False
+        return super(CephContext, self).context_complete(ctxt)
 
 
 class HAProxyContext(OSContextGenerator):
@@ -792,6 +984,7 @@ class ApacheSSLContext(OSContextGenerator):
     # and service namespace accordingly.
     external_ports = []
     service_namespace = None
+    user = group = 'root'
 
     def enable_modules(self):
         cmd = ['a2enmod', 'ssl', 'proxy', 'proxy_http', 'headers']
@@ -810,9 +1003,11 @@ class ApacheSSLContext(OSContextGenerator):
                 key_filename = 'key'
 
             write_file(path=os.path.join(ssl_dir, cert_filename),
-                       content=b64decode(cert), perms=0o640)
+                       content=b64decode(cert), owner=self.user,
+                       group=self.group, perms=0o640)
             write_file(path=os.path.join(ssl_dir, key_filename),
-                       content=b64decode(key), perms=0o640)
+                       content=b64decode(key), owner=self.user,
+                       group=self.group, perms=0o640)
 
     def configure_ca(self):
         ca_cert = get_ca_cert()
@@ -869,7 +1064,7 @@ class ApacheSSLContext(OSContextGenerator):
                     addr = network_get_primary_address(
                         ADDRESS_MAP[net_type]['binding']
                     )
-                except NotImplementedError:
+                except (NotImplementedError, NoNetworkBinding):
                     addr = fallback
 
             endpoint = resolve_address(net_type)
@@ -1107,7 +1302,9 @@ class NeutronPortContext(OSContextGenerator):
 
         hwaddr_to_nic = {}
         hwaddr_to_ip = {}
-        for nic in list_nics():
+        extant_nics = list_nics()
+
+        for nic in extant_nics:
             # Ignore virtual interfaces (bond masters will be identified from
             # their slaves)
             if not is_phy_iface(nic):
@@ -1138,10 +1335,11 @@ class NeutronPortContext(OSContextGenerator):
                     # Entry is a MAC address for a valid interface that doesn't
                     # have an IP address assigned yet.
                     resolved.append(hwaddr_to_nic[entry])
-            else:
-                # If the passed entry is not a MAC address, assume it's a valid
-                # interface, and that the user put it there on purpose (we can
-                # trust it to be the real external network).
+            elif entry in extant_nics:
+                # If the passed entry is not a MAC address and the interface
+                # exists, assume it's a valid interface, and that the user put
+                # it there on purpose (we can trust it to be the real external
+                # network).
                 resolved.append(entry)
 
         # Ensure no duplicates
@@ -1207,7 +1405,7 @@ class SubordinateConfigContext(OSContextGenerator):
 
     The subordinate interface allows subordinates to export their
     configuration requirements to the principle for multiple config
-    files and multiple serivces.  Ie, a subordinate that has interfaces
+    files and multiple services.  Ie, a subordinate that has interfaces
     to both glance and nova may export to following yaml blob as json::
 
         glance:
@@ -1428,11 +1626,11 @@ class ZeroMQContext(OSContextGenerator):
         ctxt = {}
         if is_relation_made('zeromq-configuration', 'host'):
             for rid in relation_ids('zeromq-configuration'):
-                    for unit in related_units(rid):
-                        ctxt['zmq_nonce'] = relation_get('nonce', unit, rid)
-                        ctxt['zmq_host'] = relation_get('host', unit, rid)
-                        ctxt['zmq_redis_address'] = relation_get(
-                            'zmq_redis_address', unit, rid)
+                for unit in related_units(rid):
+                    ctxt['zmq_nonce'] = relation_get('nonce', unit, rid)
+                    ctxt['zmq_host'] = relation_get('host', unit, rid)
+                    ctxt['zmq_redis_address'] = relation_get(
+                        'zmq_redis_address', unit, rid)
 
         return ctxt
 
@@ -1523,6 +1721,22 @@ class NeutronAPIContext(OSContextGenerator):
                 'rel_key': 'enable-nsg-logging',
                 'default': False,
             },
+            'enable_nfg_logging': {
+                'rel_key': 'enable-nfg-logging',
+                'default': False,
+            },
+            'enable_port_forwarding': {
+                'rel_key': 'enable-port-forwarding',
+                'default': False,
+            },
+            'global_physnet_mtu': {
+                'rel_key': 'global-physnet-mtu',
+                'default': 1500,
+            },
+            'physical_network_mtus': {
+                'rel_key': 'physical-network-mtus',
+                'default': None,
+            },
         }
         ctxt = self.get_neutron_options({})
         for rid in relation_ids('neutron-plugin-api'):
@@ -1543,6 +1757,13 @@ class NeutronAPIContext(OSContextGenerator):
             extension_drivers.append('log')
 
         ctxt['extension_drivers'] = ','.join(extension_drivers)
+
+        l3_extension_plugins = []
+
+        if ctxt['enable_port_forwarding']:
+            l3_extension_plugins.append('port_forwarding')
+
+        ctxt['l3_extension_plugins'] = l3_extension_plugins
 
         return ctxt
 
@@ -1584,13 +1805,13 @@ class DataPortContext(NeutronPortContext):
     def __call__(self):
         ports = config('data-port')
         if ports:
-            # Map of {port/mac:bridge}
+            # Map of {bridge:port/mac}
             portmap = parse_data_port_mappings(ports)
             ports = portmap.keys()
             # Resolve provided ports or mac addresses and filter out those
             # already attached to a bridge.
             resolved = self.resolve_ports(ports)
-            # FIXME: is this necessary?
+            # Rebuild port index using resolved and filtered ports.
             normalized = {get_nic_hwaddr(port): port for port in resolved
                           if port not in ports}
             normalized.update({port: port for port in resolved
@@ -1727,7 +1948,7 @@ class VolumeAPIContext(InternalEndpointContext):
         as well as the catalog_info string that would be supplied. Returns
         a dict containing the volume_api_version and the volume_catalog_info.
         """
-        rel = os_release(self.pkg, base='icehouse')
+        rel = os_release(self.pkg)
         version = '2'
         if CompareOpenStackReleases(rel) >= 'pike':
             version = '3'
@@ -1927,8 +2148,251 @@ class VersionsContext(OSContextGenerator):
         self.pkg = pkg
 
     def __call__(self):
-        ostack = os_release(self.pkg, base='icehouse')
+        ostack = os_release(self.pkg)
         osystem = lsb_release()['DISTRIB_CODENAME'].lower()
         return {
             'openstack_release': ostack,
             'operating_system_release': osystem}
+
+
+class LogrotateContext(OSContextGenerator):
+    """Common context generator for logrotate."""
+
+    def __init__(self, location, interval, count):
+        """
+        :param location: Absolute path for the logrotate config file
+        :type location: str
+        :param interval: The interval for the rotations. Valid values are
+                         'daily', 'weekly', 'monthly', 'yearly'
+        :type interval: str
+        :param count: The logrotate count option configures the 'count' times
+                      the log files are being rotated before being
+        :type count: int
+        """
+        self.location = location
+        self.interval = interval
+        self.count = 'rotate {}'.format(count)
+
+    def __call__(self):
+        ctxt = {
+            'logrotate_logs_location': self.location,
+            'logrotate_interval': self.interval,
+            'logrotate_count': self.count,
+        }
+        return ctxt
+
+
+class HostInfoContext(OSContextGenerator):
+    """Context to provide host information."""
+
+    def __init__(self, use_fqdn_hint_cb=None):
+        """Initialize HostInfoContext
+
+        :param use_fqdn_hint_cb: Callback whose return value used to populate
+                                 `use_fqdn_hint`
+        :type use_fqdn_hint_cb: Callable[[], bool]
+        """
+        # Store callback used to get hint for whether FQDN should be used
+
+        # Depending on the workload a charm manages, the use of FQDN vs.
+        # shortname may be a deploy-time decision, i.e. behaviour can not
+        # change on charm upgrade or post-deployment configuration change.
+
+        # The hint is passed on as a flag in the context to allow the decision
+        # to be made in the Jinja2 configuration template.
+        self.use_fqdn_hint_cb = use_fqdn_hint_cb
+
+    def _get_canonical_name(self, name=None):
+        """Get the official FQDN of the host
+
+        The implementation of ``socket.getfqdn()`` in the standard Python
+        library does not exhaust all methods of getting the official name
+        of a host ref Python issue https://bugs.python.org/issue5004
+
+        This function mimics the behaviour of a call to ``hostname -f`` to
+        get the official FQDN but returns an empty string if it is
+        unsuccessful.
+
+        :param name: Shortname to get FQDN on
+        :type name: Optional[str]
+        :returns: The official FQDN for host or empty string ('')
+        :rtype: str
+        """
+        name = name or socket.gethostname()
+        fqdn = ''
+
+        if six.PY2:
+            exc = socket.error
+        else:
+            exc = OSError
+
+        try:
+            addrs = socket.getaddrinfo(
+                name, None, 0, socket.SOCK_DGRAM, 0, socket.AI_CANONNAME)
+        except exc:
+            pass
+        else:
+            for addr in addrs:
+                if addr[3]:
+                    if '.' in addr[3]:
+                        fqdn = addr[3]
+                    break
+        return fqdn
+
+    def __call__(self):
+        name = socket.gethostname()
+        ctxt = {
+            'host_fqdn': self._get_canonical_name(name) or name,
+            'host': name,
+            'use_fqdn_hint': (
+                self.use_fqdn_hint_cb() if self.use_fqdn_hint_cb else False)
+        }
+        return ctxt
+
+
+def validate_ovs_use_veth(*args, **kwargs):
+    """Validate OVS use veth setting for dhcp agents
+
+    The ovs_use_veth setting is considered immutable as it will break existing
+    deployments. Historically, we set ovs_use_veth=True in dhcp_agent.ini. It
+    turns out this is no longer necessary. Ideally, all new deployments would
+    have this set to False.
+
+    This function validates that the config value does not conflict with
+    previously deployed settings in dhcp_agent.ini.
+
+    See LP Bug#1831935 for details.
+
+    :returns: Status state and message
+    :rtype: Union[(None, None), (string, string)]
+    """
+    existing_ovs_use_veth = (
+        DHCPAgentContext.get_existing_ovs_use_veth())
+    config_ovs_use_veth = DHCPAgentContext.parse_ovs_use_veth()
+
+    # Check settings are set and not None
+    if existing_ovs_use_veth is not None and config_ovs_use_veth is not None:
+        # Check for mismatch between existing config ini and juju config
+        if existing_ovs_use_veth != config_ovs_use_veth:
+            # Stop the line to avoid breakage
+            msg = (
+                "The existing setting for dhcp_agent.ini ovs_use_veth, {}, "
+                "does not match the juju config setting, {}. This may lead to "
+                "VMs being unable to receive a DHCP IP. Either change the "
+                "juju config setting or dhcp agents may need to be recreated."
+                .format(existing_ovs_use_veth, config_ovs_use_veth))
+            log(msg, ERROR)
+            return (
+                "blocked",
+                "Mismatched existing and configured ovs-use-veth. See log.")
+
+    # Everything is OK
+    return None, None
+
+
+class DHCPAgentContext(OSContextGenerator):
+
+    def __call__(self):
+        """Return the DHCPAGentContext.
+
+        Return all DHCP Agent INI related configuration.
+        ovs unit is attached to (as a subordinate) and the 'dns_domain' from
+        the neutron-plugin-api relations (if one is set).
+
+        :returns: Dictionary context
+        :rtype: Dict
+        """
+
+        ctxt = {}
+        dnsmasq_flags = config('dnsmasq-flags')
+        if dnsmasq_flags:
+            ctxt['dnsmasq_flags'] = config_flags_parser(dnsmasq_flags)
+        ctxt['dns_servers'] = config('dns-servers')
+
+        neutron_api_settings = NeutronAPIContext()()
+
+        ctxt['debug'] = config('debug')
+        ctxt['instance_mtu'] = config('instance-mtu')
+        ctxt['ovs_use_veth'] = self.get_ovs_use_veth()
+
+        ctxt['enable_metadata_network'] = config('enable-metadata-network')
+        ctxt['enable_isolated_metadata'] = config('enable-isolated-metadata')
+
+        if neutron_api_settings.get('dns_domain'):
+            ctxt['dns_domain'] = neutron_api_settings.get('dns_domain')
+
+        # Override user supplied config for these plugins as these settings are
+        # mandatory
+        if config('plugin') in ['nvp', 'nsx', 'n1kv']:
+            ctxt['enable_metadata_network'] = True
+            ctxt['enable_isolated_metadata'] = True
+
+        return ctxt
+
+    @staticmethod
+    def get_existing_ovs_use_veth():
+        """Return existing ovs_use_veth setting from dhcp_agent.ini.
+
+        :returns: Boolean value of existing ovs_use_veth setting or None
+        :rtype: Optional[Bool]
+        """
+        DHCP_AGENT_INI = "/etc/neutron/dhcp_agent.ini"
+        existing_ovs_use_veth = None
+        # If there is a dhcp_agent.ini file read the current setting
+        if os.path.isfile(DHCP_AGENT_INI):
+            # config_ini does the right thing and returns None if the setting is
+            # commented.
+            existing_ovs_use_veth = (
+                config_ini(DHCP_AGENT_INI)["DEFAULT"].get("ovs_use_veth"))
+        # Convert to Bool if necessary
+        if isinstance(existing_ovs_use_veth, six.string_types):
+            return bool_from_string(existing_ovs_use_veth)
+        return existing_ovs_use_veth
+
+    @staticmethod
+    def parse_ovs_use_veth():
+        """Parse the ovs-use-veth config setting.
+
+        Parse the string config setting for ovs-use-veth and return a boolean
+        or None.
+
+        bool_from_string will raise a ValueError if the string is not falsy or
+        truthy.
+
+        :raises: ValueError for invalid input
+        :returns: Boolean value of ovs-use-veth or None
+        :rtype: Optional[Bool]
+        """
+        _config = config("ovs-use-veth")
+        # An unset parameter returns None. Just in case we will also check for
+        # an empty string: "". Ironically, (the problem we are trying to avoid)
+        # "False" returns True and "" returns False.
+        if _config is None or not _config:
+            # Return None
+            return
+        # bool_from_string handles many variations of true and false strings
+        # as well as upper and lowercases including:
+        # ['y', 'yes', 'true', 't', 'on', 'n', 'no', 'false', 'f', 'off']
+        return bool_from_string(_config)
+
+    def get_ovs_use_veth(self):
+        """Return correct ovs_use_veth setting for use in dhcp_agent.ini.
+
+        Get the right value from config or existing dhcp_agent.ini file.
+        Existing has precedence. Attempt to default to "False" without
+        disrupting existing deployments. Handle existing deployments and
+        upgrades safely. See LP Bug#1831935
+
+        :returns: Value to use for ovs_use_veth setting
+        :rtype: Bool
+        """
+        _existing = self.get_existing_ovs_use_veth()
+        if _existing is not None:
+            return _existing
+
+        _config = self.parse_ovs_use_veth()
+        if _config is None:
+            # New better default
+            return False
+        else:
+            return _config
