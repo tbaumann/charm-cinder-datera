@@ -36,9 +36,7 @@ from charmhelpers.core.hookenv import (
     log,
 )
 
-from charmhelpers.contrib.python.packages import (
-    pip_install,
-)
+from charmhelpers.fetch.python import packages
 
 CINDER_BACKUP_FOLDER = '/tmp/cinder'
 
@@ -70,7 +68,7 @@ def install():
     else:
         raise DateraException("Unknown install type {}".format(
             config('install_type')))
-    pip_install("dfs_sdk", upgrade=True)
+    packages.pip_install("dfs_sdk", upgrade=True)
 
 
 def install_from_github(url, tag, dest):
