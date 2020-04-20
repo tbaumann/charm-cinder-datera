@@ -16,6 +16,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 
 from charmhelpers.core.hookenv import (
     config,
@@ -129,12 +130,12 @@ def find_cinder_install():
     except ImportError:
         try:
             out = exec_cmd("python -c 'import cinder; print(cinder.__file__)'")
-            return os.path.dirname(out)
+            return os.path.dirname(out.rstrip())
         except subprocess.CalledProcessError:
             try:
                 out = exec_cmd(
                     "python3 -c 'import cinder; print(cinder.__file__)'")
-                return os.path.dirname(out)
+                return os.path.dirname(out.rstrip())
             except subprocess.CalledProcessError:
                 dlog("Could not determine Cinder install location.  Cinder "
                      "must either be installed in the currently running "
@@ -178,5 +179,6 @@ def get_version():
 def exec_cmd(cmd):
     dlog("Executing command: [{}]".format(cmd))
     out = subprocess.check_output(shlex.split(cmd))
+    out = out.decode(sys.stdout.encoding)
     dlog("Result: {}".format(out))
     return out
